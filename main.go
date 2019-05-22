@@ -7,7 +7,7 @@ import (
 )
 
 func imgRework(labels []int, centroids []kmeans.Observation, rows int, cols int)(gocv.Mat, error){
-  mat := gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV64F)
+  mat := gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV16U)
   for i:=0; i<rows; i++ {
     for j:=0; j<cols; j++{
         value := labels[i*cols + j]
@@ -57,10 +57,10 @@ func main() {
 	labels, centroids, _ := kmeans.Kmeans(mat, 3, kmeans.EuclideanDistance, 10)
   imgQuantized, _ := imgRework(labels, centroids, img.Rows(), img.Cols())
 
-  img2 := gocv.NewMat()
-  imgQuantized.ConvertTo(&img2, gocv.MatTypeCV32S)
+  //img2 := gocv.NewMat()
+  //imgQuantized.ConvertTo(&img2, gocv.MatTypeCV32S)
 
-  fmt.Println(img2)
+  //fmt.Println(img2)
 	fmt.Println(len(labels))
   fmt.Println(centroids)
 	fmt.Println(imgKmeans.Cols())
