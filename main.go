@@ -6,18 +6,19 @@ import (
 	"gocv.io/x/gocv"
 )
 
-func imgRework(labels []int, centroids []kmeans.Observation, rows int, cols int)(gocv.Mat, error){
-  mat := gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV16U)
+//Reconstroi a imagem a partir da clusterização do kmeans
+func imgRework(mat *gocv.Mat, labels []int, centroids []kmeans.Observation, rows int, cols int)( error){
+  //mat := gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
   for i:=0; i<rows; i++ {
     for j:=0; j<cols; j++{
         value := labels[i*cols + j]
-        ch := centroids[value]
+        ch := centroids[value] //valores do pixel na posição i, j nos 3 canais
         mat.SetDoubleAt3(i, j, 0, ch[0])
         mat.SetDoubleAt3(i, j, 1, ch[1])
         mat.SetDoubleAt3(i, j, 2, ch[2])
     }
   }
-  return mat, nil
+  return nil
 }
 
 func reshape(slice []float64, rows int, cols int) ([][]float64, error) {
@@ -52,31 +53,22 @@ func main() {
 	//imgKmeans = imgKmeans.Reshape(3, img.Cols()*img.Rows())
 
 	mat, _ := reshape(teste, img.Cols()*img.Rows(), 3)
-	fmt.Println(mat)
 
-	labels, centroids, _ := kmeans.Kmeans(mat, 3, kmeans.EuclideanDistance, 10)
-  imgQuantized, _ := imgRework(labels, centroids, img.Rows(), img.Cols())
+	labels, centroids, _ := kmeans.Kmeans(mat, 10, kmeans.EuclideanDistance, 10)
+  imgRework(&img, labels, centroids, img.Rows(), img.Cols())
 
-  //img2 := gocv.NewMat()
-  //imgQuantized.ConvertTo(&img2, gocv.MatTypeCV32S)
-
-  //fmt.Println(img2)
-	fmt.Println(len(labels))
   fmt.Println(centroids)
-	fmt.Println(imgKmeans.Cols())
-	fmt.Println(imgKmeans.Rows())
-	fmt.Println(imgKmeans.Channels())
-  fmt.Println(imgQuantized.Size())
-
-	window := gocv.NewWindow("original gopher")
+	//window := gocv.NewWindow("original gopher")
 	window2 := gocv.NewWindow("gopher blured")
 	window3 := gocv.NewWindow("gopher edges")
 	window4 := gocv.NewWindow("gopher filtered")
-	//window5 := gocv.NewWindow("gopher reshape")
-	window.IMShow(img)
+  window5 := gocv.NewWindow("gopher quantized")
+
+	//window.IMShow(img)
 	window2.IMShow(imgBlured)
 	window3.IMShow(imgEdges)
 	window4.IMShow(imgFiltered)
-	//window5.IMShow(imgKmeans)
-	window.WaitKey(0)
+  window5.IMShow(img)
+
+	window2.WaitKey(0)
 }
