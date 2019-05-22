@@ -2,9 +2,23 @@ package main
 
 import (
 	"fmt"
-	"github.com/bugra/kmeans"
+	"Toonify/kmeans"
 	"gocv.io/x/gocv"
 )
+
+func imgRework(labels []int, centroids []kmeans.Observation, rows int, cols int)(gocv.Mat, error){
+  mat := gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV64F)
+  for i:=0; i<rows; i++ {
+    for j:=0; j<cols; j++{
+        value := labels[i*cols + j]
+        ch := centroids[value]
+        mat.SetDoubleAt3(i, j, 0, ch[0])
+        mat.SetDoubleAt3(i, j, 1, ch[1])
+        mat.SetDoubleAt3(i, j, 2, ch[2])
+    }
+  }
+  return mat, nil
+}
 
 func reshape(slice []float64, rows int, cols int) ([][]float64, error) {
 	mat := make([][]float64, rows)
@@ -40,12 +54,19 @@ func main() {
 	mat, _ := reshape(teste, img.Cols()*img.Rows(), 3)
 	fmt.Println(mat)
 
-	labels, _ := kmeans.Kmeans(mat, 3, kmeans.EuclideanDistance, 10)
-	fmt.Println(labels)
+	labels, centroids, _ := kmeans.Kmeans(mat, 3, kmeans.EuclideanDistance, 10)
+  imgQuantized, _ := imgRework(labels, centroids, img.Rows(), img.Cols())
 
+  img2 := gocv.NewMat()
+  imgQuantized.ConvertTo(&img2, gocv.MatTypeCV32S)
+
+  fmt.Println(img2)
+	fmt.Println(len(labels))
+  fmt.Println(centroids)
 	fmt.Println(imgKmeans.Cols())
 	fmt.Println(imgKmeans.Rows())
 	fmt.Println(imgKmeans.Channels())
+  fmt.Println(imgQuantized.Size())
 
 	window := gocv.NewWindow("original gopher")
 	window2 := gocv.NewWindow("gopher blured")
