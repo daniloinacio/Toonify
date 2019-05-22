@@ -3,7 +3,21 @@ package main
 import (
   "gocv.io/x/gocv"
   "fmt"
+  "github.com/bugra/kmeans"
 )
+
+func reshape(slice []float64, rows int, cols int) ([][]float64, error){
+  mat := make([][]float64, rows)
+      for i:=0; i<rows; i++ {
+        aux := make([]float64, cols)
+        for j:=0; j<cols; j++ {
+          aux[j] = slice[i*cols + j]
+        }
+        mat[i] = aux
+      }
+  return mat, nil
+}
+
 
 func main(){
   img := gocv.IMRead("gopher.png", gocv.IMReadUnchanged)
@@ -21,9 +35,18 @@ func main(){
 
   imgKmeans := gocv.NewMat()
   imgFiltered.ConvertTo(&imgKmeans, gocv.MatTypeCV64F)
-  imgKmeans = imgKmeans.Reshape(-1, 3)
-  //imageToonify =
-  fmt.Println(imgKmeans)
+  teste, _ := imgKmeans.DataPtrFloat64()
+  //imgKmeans = imgKmeans.Reshape(3, img.Cols()*img.Rows())
+
+  mat, _:= reshape(teste, img.Cols()*img.Rows(), 3)
+  fmt.Println(mat)
+
+  labels, _ := kmeans.Kmeans(mat, 3, kmeans.EuclideanDistance, 10)
+  fmt.Println(labels)
+
+  fmt.Println(imgKmeans.Cols())
+  fmt.Println(imgKmeans.Rows())
+  fmt.Println(imgKmeans.Channels())
 
   window := gocv.NewWindow("original gopher")
   window2 := gocv.NewWindow("gopher blured")
