@@ -13,9 +13,9 @@ func imgRework(mat *gocv.Mat, labels []int, centroids []kmeans.Observation, rows
     for j:=0; j<cols; j++{
         value := labels[i*cols + j]
         ch := centroids[value] //valores do pixel na posição i, j nos 3 canais
-        mat.SetDoubleAt3(i, j, 0, ch[0])
-        mat.SetDoubleAt3(i, j, 1, ch[1])
-        mat.SetDoubleAt3(i, j, 2, ch[2])
+        mat.SetUCharAt3(i, j, 0, uint8(ch[0]))
+        mat.SetUCharAt3(i, j, 1, uint8(ch[1]))
+        mat.SetUCharAt3(i, j, 2, uint8(ch[2]))
     }
   }
   return nil
