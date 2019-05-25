@@ -12,11 +12,11 @@ func main() {
 
 	fps := 15
 	// Open video capture
-	webcam, _ := gocv.OpenVideoCapture("keyboard2.mp4")
+	webcam, _ := gocv.OpenVideoCapture("keyboard.mp4")
 	// Initialize output
 	vid_width := int(webcam.Get(3))
 	vid_height := int(webcam.Get(4))
-	output, _ := gocv.VideoWriterFile("ToonVideo2.avi","MJPG",float64(fps),vid_width,vid_height,true)
+	output, _ := gocv.VideoWriterFile("ToonVideo.avi","MJPG",float64(fps),vid_width,vid_height,true)
 
 	window := gocv.NewWindow("Hello")
 	window2 := gocv.NewWindow("Hello2")
