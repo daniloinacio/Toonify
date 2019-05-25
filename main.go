@@ -1,27 +1,32 @@
 package main
 
 import (
-	"fmt"
 	"Toonify/kmeans"
+	"fmt"
 	"gocv.io/x/gocv"
 )
 
 //Reconstroi a imagem a partir da clusterização do kmeans
-func imgRework(mat *gocv.Mat, labels []int, centroids []kmeans.Observation, rows int, cols int)( error){
-  //mat := gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
-  for i:=0; i<rows; i++ {
-    for j:=0; j<cols; j++{
-        value := labels[i*cols + j]
-				//valores do pixel na posição i, j nos 3 canais
-        ch := centroids[value]
-        mat.SetUCharAt3(i, j, 0, uint8(ch[0]))
-				//os valores 37 e 74 são o offset da distorção da função Set do gocv
-        mat.SetUCharAt3(i, j-37, 1, uint8(ch[1]))
-				mat.SetUCharAt3(i, j-74, 2, uint8(ch[2]))
-
+func imgRework(labels []int, centroids []kmeans.Observation, rows int, cols int) (gocv.Mat, error) {
+	//cria uma slice de Mats de 1 canal
+	mat := make([]gocv.Mat, 3)
+	mat[0] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
+	mat[1] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
+	mat[2] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
+	for i := 0; i < rows; i++ {
+		for j := 0; j < cols; j++ {
+			value := labels[i*cols+j]
+			//valores do pixel na posição i, j nos 3 canais
+			ch := centroids[value]
+			//seta os valores nos canais correspondentes
+			mat[0].SetUCharAt(i, j, uint8(ch[0]))
+			mat[1].SetUCharAt(i, j, uint8(ch[1]))
+			mat[2].SetUCharAt(i, j, uint8(ch[2]))
 		}
-  }
-  return nil
+	}
+	img := gocv.NewMat()
+	gocv.Merge(mat, &img)
+	return img, nil
 }
 
 func reshape(slice []float64, rows int, cols int) ([][]float64, error) {
@@ -38,16 +43,6 @@ func reshape(slice []float64, rows int, cols int) ([][]float64, error) {
 
 func main() {
 	img := gocv.IMRead("gopher.png", gocv.IMReadUnchanged)
-  //fmt.Println(img.GetUCharAt3(0, 0, 1))
-	/*for i:=0; i<50; i++{
-			for j:=0; j<37; j++{
-				img.SetUCharAt3(100+i, j, 0, uint8(0))
-				img.SetUCharAt3(100+i, j, 1, uint8(0))
-				img.SetUCharAt3(100+i, j, 2, uint8(0))
-			}
-	}
-	rgb := gocv.Split(img)
-	*/
 
 	imgBlured := gocv.NewMat()
 	gocv.MedianBlur(img, &imgBlured, 7)
@@ -62,36 +57,30 @@ func main() {
 
 	imgKmeans := gocv.NewMat()
 	imgFiltered.ConvertTo(&imgKmeans, gocv.MatTypeCV64F)
-	teste, _ := imgKmeans.DataPtrFloat64()
-	//imgKmeans = imgKmeans.Reshape(3, img.Cols()*img.Rows())
+	imgFloat64, _ := imgKmeans.DataPtrFloat64()
 
-	mat, _ := reshape(teste, img.Cols()*img.Rows(), 3)
+	data, _ := reshape(imgFloat64, img.Cols()*img.Rows(), 3)
 	fmt.Println(img.Rows(), img.Cols())
 
-	labels, centroids, _ := kmeans.Kmeans(mat, 24, kmeans.EuclideanDistance, 10)
-  imgRework(&img, labels, centroids, img.Rows(), img.Cols())
+	labels, centroids, _ := kmeans.Kmeans(data, 24, kmeans.EuclideanDistance, 10)
+	imgQuantized, _ := imgRework(labels, centroids, img.Rows(), img.Cols())
 	imgToonify := gocv.NewMat()
-	gocv.BitwiseAnd(imgEdges, img, &imgToonify)
 
-  //fmt.Println(centroids)
-	//window := gocv.NewWindow("original gopher")
+	gocv.BitwiseAnd(imgEdges, imgQuantized, &imgToonify)
+
+	window := gocv.NewWindow("original gopher")
 	window2 := gocv.NewWindow("gopher blured")
 	window3 := gocv.NewWindow("gopher edges")
 	window4 := gocv.NewWindow("gopher filtered")
-  window5 := gocv.NewWindow("gopher quantized")
+	window5 := gocv.NewWindow("gopher quantized")
 	window6 := gocv.NewWindow("gopher toonifyed")
-	//window6 := gocv.NewWindow("B")
-	//window7 := gocv.NewWindow("G")
-	//window8 := gocv.NewWindow("R")
-	//window.IMShow(img)
+
+	window.IMShow(img)
 	window2.IMShow(imgBlured)
 	window3.IMShow(imgEdges)
 	window4.IMShow(imgFiltered)
-  window5.IMShow(img)
+	window5.IMShow(imgQuantized)
 	window6.IMShow(imgToonify)
-	//window6.IMShow(rgb[0])
-	//window7.IMShow(rgb[1])
-	//window8.IMShow(rgb[2])
 
-	window2.WaitKey(0)
+	window.WaitKey(0)
 }
