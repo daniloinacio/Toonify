@@ -11,8 +11,11 @@ func imgRework(labels []int, centroids []kmeans.Observation, rows int, cols int)
 	//cria uma slice de Mats de 1 canal
 	mat := make([]gocv.Mat, 3)
 	mat[0] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
+	defer mat[0].Close()
 	mat[1] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
+	defer mat[1].Close()
 	mat[2] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
+	defer mat[2].Close()
 	for i := 0; i < rows; i++ {
 		for j := 0; j < cols; j++ {
 			value := labels[i*cols+j]
@@ -44,17 +47,21 @@ func reshape(slice []float64, rows int, cols int) ([][]float64, error) {
 func toonify(img gocv.Mat) gocv.Mat {
 
 	imgBlured := gocv.NewMat()
+	defer imgBlured.Close()
 	gocv.MedianBlur(img, &imgBlured, 7)
 
 	imgEdges := gocv.NewMat()
+	defer imgEdges.Close()
 	gocv.Canny(imgBlured, &imgEdges, 62.5, 125)
 	gocv.BitwiseNot(imgEdges, &imgEdges)
 	gocv.CvtColor(imgEdges, &imgEdges, gocv.ColorGrayToBGR)
 
 	imgFiltered := gocv.NewMat()
+	defer imgFiltered.Close()
 	gocv.BilateralFilter(imgBlured, &imgFiltered, 7, 35, 35)
 
 	imgKmeans := gocv.NewMat()
+	defer imgKmeans.Close()
 	imgFiltered.ConvertTo(&imgKmeans, gocv.MatTypeCV64F)
 	imgFloat64, _ := imgKmeans.DataPtrFloat64()
 
@@ -63,6 +70,7 @@ func toonify(img gocv.Mat) gocv.Mat {
 	labels, centroids, _ := kmeans.Kmeans(data, 24, kmeans.EuclideanDistance, 10)
 	imgQuantized, _ := imgRework(labels, centroids, img.Rows(), img.Cols())
 	imgToonify := gocv.NewMat()
+	defer imgQuantized.Close()
 
 	gocv.BitwiseAnd(imgEdges, imgQuantized, &imgToonify)
 
