@@ -5,15 +5,18 @@ import (
 )
 
 func main() {
-	//webcam, _ := gocv.OpenVideoCapture("[AnimesTelecine] Isekai Quartet - 05 [720p].mp4")
 	webcam, _ := gocv.OpenVideoCapture(0)
 	window := gocv.NewWindow("Hello")
+	window2 := gocv.NewWindow("Hello2")
 	img := gocv.NewMat()
-	fps := 60
+	fps := 5
 
 	for {
 		webcam.Read(&img)
+		img2 := toonify(img)
 		window.IMShow(img)
+		window2.IMShow(img2)
 		window.WaitKey(1000 / fps)
 	}
+
 }
