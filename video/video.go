@@ -5,7 +5,7 @@ import (
 )
 
 func main() {
-	webcam, _ := gocv.OpenVideoCapture(0)
+	webcam, _ := gocv.OpenVideoCapture("keyboard.mp4")
 	window := gocv.NewWindow("Hello")
 	window2 := gocv.NewWindow("Hello2")
 	img := gocv.NewMat()
