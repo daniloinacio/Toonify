@@ -41,46 +41,73 @@ func reshape(slice []float64, rows int, cols int) ([][]float64, error) {
 	return mat, nil
 }
 
-func main() {
-	img := gocv.IMRead("gopher.png", gocv.IMReadUnchanged)
-
-	imgBlured := gocv.NewMat()
-	gocv.MedianBlur(img, &imgBlured, 7)
-
+func makeEdges(imgBlured gocv.Mat, edgesChan chan gocv.Mat) {
 	imgEdges := gocv.NewMat()
 	gocv.Canny(imgBlured, &imgEdges, 62.5, 125)
 	gocv.BitwiseNot(imgEdges, &imgEdges)
 	gocv.CvtColor(imgEdges, &imgEdges, gocv.ColorGrayToBGR)
+	fmt.Println("Image edged")
+	edgesChan <- imgEdges
+}
 
+func filter(imgBlured gocv.Mat, filterChan chan gocv.Mat) {
 	imgFiltered := gocv.NewMat()
 	gocv.BilateralFilter(imgBlured, &imgFiltered, 7, 35, 35)
+	fmt.Println("Image filtered")
+	filterChan <- imgFiltered
+}
 
+func makeToon(img gocv.Mat, edgesChan chan gocv.Mat, filterChan chan gocv.Mat, toonChan chan gocv.Mat) {
 	imgKmeans := gocv.NewMat()
-	imgFiltered.ConvertTo(&imgKmeans, gocv.MatTypeCV64F)
+	filteredImg := <-filterChan
+	filteredImg.ConvertTo(&imgKmeans, gocv.MatTypeCV64F)
 	imgFloat64, _ := imgKmeans.DataPtrFloat64()
 
 	data, _ := reshape(imgFloat64, img.Cols()*img.Rows(), 3)
-	fmt.Println(img.Rows(), img.Cols())
 
 	labels, centroids, _ := kmeans.Kmeans(data, 24, kmeans.EuclideanDistance, 10)
 	imgQuantized, _ := imgRework(labels, centroids, img.Rows(), img.Cols())
+
 	imgToonify := gocv.NewMat()
+	gocv.BitwiseAnd(<-edgesChan, imgQuantized, &imgToonify)
+	toonChan <- imgToonify
+}
 
-	gocv.BitwiseAnd(imgEdges, imgQuantized, &imgToonify)
+func main() {
+	// declarações de canais
+	doneChan := make(chan string)     // para indicar que o programa terminou
+	edgesChan := make(chan gocv.Mat)  // para colocar a imagem das bordas
+	filterChan := make(chan gocv.Mat) // para a imagem filtrada
+	toonChan := make(chan gocv.Mat)   // para a imagem cartunizada
+	fmt.Println("Toonifying...")
 
-	window := gocv.NewWindow("original gopher")
-	window2 := gocv.NewWindow("gopher blured")
-	window3 := gocv.NewWindow("gopher edges")
-	window4 := gocv.NewWindow("gopher filtered")
-	window5 := gocv.NewWindow("gopher quantized")
-	window6 := gocv.NewWindow("gopher toonifyed")
+	go func() {
+		img := gocv.IMRead("gopher.png", gocv.IMReadUnchanged)
 
-	window.IMShow(img)
-	window2.IMShow(imgBlured)
-	window3.IMShow(imgEdges)
-	window4.IMShow(imgFiltered)
-	window5.IMShow(imgQuantized)
-	window6.IMShow(imgToonify)
+		// borrando imagem
+		imgBlured := gocv.NewMat()
+		gocv.MedianBlur(img, &imgBlured, 7)
+		fmt.Println("Image blured")
 
-	window.WaitKey(0)
+		// fazendo as bordas
+		go makeEdges(imgBlured, edgesChan)
+
+		// aplicando filtro bilateral
+		go filter(imgBlured, filterChan)
+
+		// cartunizando
+		go makeToon(img, edgesChan, filterChan, toonChan)
+
+		window1 := gocv.NewWindow("original image")
+		window2 := gocv.NewWindow("toonifyed image")
+
+		window1.IMShow(img)
+		window2.IMShow(<-toonChan)
+
+		window1.WaitKey(0)
+
+		doneChan <- "Done!"
+	}()
+
+	<-doneChan
 }
