@@ -10,6 +10,9 @@ import (
 func imgRework(labels []int, centroids []kmeans.Observation, rows int, cols int) (gocv.Mat, error) {
 	//cria uma slice de Mats de 1 canal
 	mat := make([]gocv.Mat, 3)
+	defer mat[0].Close()
+	defer mat[1].Close()
+	defer mat[2].Close()
 	mat[0] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
 	mat[1] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
 	mat[2] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
@@ -59,7 +62,11 @@ func filter(imgBlured gocv.Mat, filterChan chan gocv.Mat) {
 
 func makeToon(img gocv.Mat, edgesChan chan gocv.Mat, filterChan chan gocv.Mat, toonChan chan gocv.Mat) {
 	imgKmeans := gocv.NewMat()
+	defer imgKmeans.Close()
+
 	filteredImg := <-filterChan
+	defer filteredImg.Close()
+
 	filteredImg.ConvertTo(&imgKmeans, gocv.MatTypeCV64F)
 	imgFloat64, _ := imgKmeans.DataPtrFloat64()
 
@@ -67,9 +74,11 @@ func makeToon(img gocv.Mat, edgesChan chan gocv.Mat, filterChan chan gocv.Mat, t
 
 	labels, centroids, _ := kmeans.Kmeans(data, 24, kmeans.EuclideanDistance, 10)
 	imgQuantized, _ := imgRework(labels, centroids, img.Rows(), img.Cols())
+	defer imgQuantized.Close()
 
 	imgToonify := gocv.NewMat()
 	gocv.BitwiseAnd(<-edgesChan, imgQuantized, &imgToonify)
+	fmt.Println("Image Toonified")
 	toonChan <- imgToonify
 }
 
@@ -83,9 +92,12 @@ func main() {
 
 	go func() {
 		img := gocv.IMRead("gopher.png", gocv.IMReadUnchanged)
+		defer img.Close()
 
 		// borrando imagem
 		imgBlured := gocv.NewMat()
+		defer imgBlured.Close()
+
 		gocv.MedianBlur(img, &imgBlured, 7)
 		fmt.Println("Image blured")
 
@@ -99,7 +111,9 @@ func main() {
 		go makeToon(img, edgesChan, filterChan, toonChan)
 
 		window1 := gocv.NewWindow("original image")
+		defer window1.Close()
 		window2 := gocv.NewWindow("toonifyed image")
+		defer window2.Close()
 
 		window1.IMShow(img)
 		window2.IMShow(<-toonChan)
@@ -110,4 +124,8 @@ func main() {
 	}()
 
 	<-doneChan
+	close(doneChan)
+	close(edgesChan)
+	close(filterChan)
+	close(toonChan)
 }
