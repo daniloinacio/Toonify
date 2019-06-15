@@ -2,7 +2,6 @@ package main
 
 import (
 	"Toonify/kmeans"
-	"fmt"
 	"log"
 	"time"
 
@@ -38,6 +37,7 @@ func imgRework(clusteredData []kmeans.ClusteredObservation, centroids []kmeans.O
 // Formata a imagem para ser processada pelo kmeans
 func formatData(img gocv.Mat) []kmeans.ClusteredObservation {
 	imgFloat64 := gocv.NewMat()
+	defer imgFloat64.Close()
 	img.ConvertTo(&imgFloat64, gocv.MatTypeCV64F)
 	slice, _ := imgFloat64.DataPtrFloat64()
 
@@ -55,66 +55,9 @@ func formatData(img gocv.Mat) []kmeans.ClusteredObservation {
 	return data
 }
 
-func makeEdges(imgBlured gocv.Mat, edgesChan chan gocv.Mat) {
-
-	start := time.Now()
-	imgEdges := gocv.NewMat()
-	gocv.Canny(imgBlured, &imgEdges, 62.5, 125)
-	elapsed := time.Since(start)
-	log.Printf("canny time: %s", elapsed)
-	gocv.BitwiseNot(imgEdges, &imgEdges)
-	gocv.CvtColor(imgEdges, &imgEdges, gocv.ColorGrayToBGR)
-	fmt.Println("Image edged")
-	edgesChan <- imgEdges
-}
-
-func filter(imgBlured gocv.Mat, filterChan chan gocv.Mat) {
-
-	imgFiltered := gocv.NewMat()
-	start := time.Now()
-	gocv.BilateralFilter(imgBlured, &imgFiltered, 7, 35, 35)
-	elapsed := time.Since(start)
-	log.Printf("bilateral time: %s", elapsed)
-	fmt.Println("Image filtered")
-	filterChan <- imgFiltered
-}
-
-func makeToon(img gocv.Mat, edgesChan chan gocv.Mat, filterChan chan gocv.Mat, toonChan chan gocv.Mat) {
-
-	imgKmeans := gocv.NewMat()
-	defer imgKmeans.Close()
-
-	filteredImg := <-filterChan
-	defer filteredImg.Close()
-	start := time.Now()
-	data := formatData(filteredImg)
-	elapsed := time.Since(start)
-	log.Printf("format time: %s", elapsed)
-	start = time.Now()
-	clusteredData, centroids, _ := kmeans.Kmeans(data, 24, kmeans.EuclideanDistance, 10)
-	elapsed = time.Since(start)
-	log.Printf("kmeans time: %s", elapsed)
-	start = time.Now()
-	imgQuantized, _ := imgRework(clusteredData, centroids, img.Rows(), img.Cols())
-	elapsed = time.Since(start)
-	log.Printf("imgRework time: %s", elapsed)
-	defer imgQuantized.Close()
-
-	imgToonify := gocv.NewMat()
-	gocv.BitwiseAnd(<-edgesChan, imgQuantized, &imgToonify)
-	fmt.Println("Image Toonified")
-	toonChan <- imgToonify
-}
-
 func main() {
 
 	start := time.Now()
-	// declarações de canais
-	doneChan := make(chan string)     // para indicar que o programa terminou
-	edgesChan := make(chan gocv.Mat)  // para colocar a imagem das bordas
-	filterChan := make(chan gocv.Mat) // para a imagem filtrada
-	toonChan := make(chan gocv.Mat)   // para a imagem cartunizada
-	fmt.Println("Toonifying...")
 
 	img := gocv.IMRead("gopher.png", gocv.IMReadUnchanged)
 	defer img.Close()
@@ -122,20 +65,30 @@ func main() {
 	// borrando imagem
 	imgBlured := gocv.NewMat()
 	defer imgBlured.Close()
-	start = time.Now()
 	gocv.MedianBlur(img, &imgBlured, 7)
-	elapsed := time.Since(start)
-	log.Printf("median time: %s", elapsed)
-	fmt.Println("Image blured")
 
 	// fazendo as bordas
-	go makeEdges(imgBlured, edgesChan)
+	imgEdges := gocv.NewMat()
+	defer imgEdges.Close()
+	gocv.Canny(imgBlured, &imgEdges, 62.5, 125)
+	gocv.BitwiseNot(imgEdges, &imgEdges)
+	gocv.CvtColor(imgEdges, &imgEdges, gocv.ColorGrayToBGR)
 
 	// aplicando filtro bilateral
-	go filter(imgBlured, filterChan)
+	imgFiltered := gocv.NewMat()
+	defer imgFiltered.Close()
+	gocv.BilateralFilter(imgBlured, &imgFiltered, 7, 35, 35)
 
 	// cartunizando
-	go makeToon(img, edgesChan, filterChan, toonChan)
+	data := formatData(imgFiltered)
+	clusteredData, centroids, _ := kmeans.Kmeans(data, 24, kmeans.EuclideanDistance, 10)
+	imgQuantized, _ := imgRework(clusteredData, centroids, img.Rows(), img.Cols())
+	defer imgQuantized.Close()
+	imgToonify := gocv.NewMat()
+	gocv.BitwiseAnd(imgEdges, imgQuantized, &imgToonify)
+
+	elapsed := time.Since(start)
+	log.Printf("total time: %s", elapsed)
 
 	window1 := gocv.NewWindow("original image")
 	defer window1.Close()
@@ -143,14 +96,6 @@ func main() {
 	defer window2.Close()
 
 	window1.IMShow(img)
-	window2.IMShow(<-toonChan)
+	window2.IMShow(imgToonify)
 	window1.WaitKey(0)
-
-	elapsed = time.Since(start)
-	log.Printf("total time: %s", elapsed)
-	close(doneChan)
-	close(edgesChan)
-	close(filterChan)
-	close(toonChan)
-
 }
