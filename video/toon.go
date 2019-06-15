@@ -7,20 +7,20 @@ import (
 )
 
 //Reconstroi a imagem a partir da clusterização do kmeans
-func imgRework(labels []int, centroids []kmeans.Observation, rows int, cols int) (gocv.Mat, error) {
+func imgRework(clusteredData []kmeans.ClusteredObservation, centroids []kmeans.Observation, rows int, cols int) (gocv.Mat, error) {
 	//cria uma slice de Mats de 1 canal
 	mat := make([]gocv.Mat, 3)
-	mat[0] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
 	defer mat[0].Close()
-	mat[1] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
 	defer mat[1].Close()
-	mat[2] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
 	defer mat[2].Close()
+	mat[0] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
+	mat[1] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
+	mat[2] = gocv.NewMatWithSize(rows, cols, gocv.MatTypeCV8U)
 	for i := 0; i < rows; i++ {
 		for j := 0; j < cols; j++ {
-			value := labels[i*cols+j]
+			index := clusteredData[i*cols+j].ClusterNumber
 			//valores do pixel na posição i, j nos 3 canais
-			ch := centroids[value]
+			ch := centroids[index]
 			//seta os valores nos canais correspondentes
 			mat[0].SetUCharAt(i, j, uint8(ch[0]))
 			mat[1].SetUCharAt(i, j, uint8(ch[1]))
@@ -32,61 +32,82 @@ func imgRework(labels []int, centroids []kmeans.Observation, rows int, cols int)
 	return img, nil
 }
 
-func reshape(slice []float64, rows int, cols int) ([][]float64, error) {
-	mat := make([][]float64, rows)
+// Formata a imagem para ser processada pelo kmeans
+func formatData(img gocv.Mat) []kmeans.ClusteredObservation {
+	imgFloat64 := gocv.NewMat()
+	img.ConvertTo(&imgFloat64, gocv.MatTypeCV64F)
+	slice, _ := imgFloat64.DataPtrFloat64()
+
+	rows := img.Rows() * img.Cols()
+	cols := img.Channels()
+
+	data := make([]kmeans.ClusteredObservation, rows)
 	for i := 0; i < rows; i++ {
 		aux := make([]float64, cols)
 		for j := 0; j < cols; j++ {
 			aux[j] = slice[i*cols+j]
 		}
-		mat[i] = aux
+		data[i].Observation = aux
 	}
-	return mat, nil
+	return data
+}
+
+func makeEdges(imgBlured gocv.Mat, edgesChan chan gocv.Mat) {
+	//defer wg.Done()
+	imgEdges := gocv.NewMat()
+	gocv.Canny(imgBlured, &imgEdges, 62.5, 125)
+	gocv.BitwiseNot(imgEdges, &imgEdges)
+	gocv.CvtColor(imgEdges, &imgEdges, gocv.ColorGrayToBGR)
+	edgesChan <- imgEdges
+}
+
+func filter(imgBlured gocv.Mat, filterChan chan gocv.Mat) {
+	//defer wg.Done()
+	imgFiltered := gocv.NewMat()
+	gocv.BilateralFilter(imgBlured, &imgFiltered, 7, 35, 35)
+	filterChan <- imgFiltered
+}
+
+func makeToon(img gocv.Mat, edgesChan chan gocv.Mat, filterChan chan gocv.Mat, toonChan chan gocv.Mat) {
+	//defer wg.Done()
+	imgKmeans := gocv.NewMat()
+	defer imgKmeans.Close()
+
+	filteredImg := <-filterChan
+	defer filteredImg.Close()
+	data := formatData(filteredImg)
+	clusteredData, centroids, _ := kmeans.Kmeans(data, 24, kmeans.EuclideanDistance, 10)
+	imgQuantized, _ := imgRework(clusteredData, centroids, img.Rows(), img.Cols())
+	defer imgQuantized.Close()
+	imgToonify := gocv.NewMat()
+	gocv.BitwiseAnd(<-edgesChan, imgQuantized, &imgToonify)
+	toonChan <- imgToonify
 }
 
 func toonify(img gocv.Mat) gocv.Mat {
-
+	// declarações de canais
+	doneChan := make(chan string)     // para indicar que o programa terminou
+	edgesChan := make(chan gocv.Mat)  // para colocar a imagem das bordas
+	filterChan := make(chan gocv.Mat) // para a imagem filtrada
+	toonChan := make(chan gocv.Mat)   // para a imagem cartonizada
+	// borrando imagem
 	imgBlured := gocv.NewMat()
 	defer imgBlured.Close()
 	gocv.MedianBlur(img, &imgBlured, 7)
 
-	imgEdges := gocv.NewMat()
-	defer imgEdges.Close()
-	gocv.Canny(imgBlured, &imgEdges, 62.5, 125)
-	gocv.BitwiseNot(imgEdges, &imgEdges)
-	gocv.CvtColor(imgEdges, &imgEdges, gocv.ColorGrayToBGR)
+	// fazendo as bordas
+	go makeEdges(imgBlured, edgesChan)
 
-	imgFiltered := gocv.NewMat()
-	defer imgFiltered.Close()
-	gocv.BilateralFilter(imgBlured, &imgFiltered, 7, 35, 35)
+	// aplicando filtro bilateral
+	go filter(imgBlured, filterChan)
 
-	imgKmeans := gocv.NewMat()
-	defer imgKmeans.Close()
-	imgFiltered.ConvertTo(&imgKmeans, gocv.MatTypeCV64F)
-	imgFloat64, _ := imgKmeans.DataPtrFloat64()
+	// cartunizando
+	go makeToon(img, edgesChan, filterChan, toonChan)
 
-	data, _ := reshape(imgFloat64, img.Cols()*img.Rows(), 3)
-
-	labels, centroids, _ := kmeans.Kmeans(data, 24, kmeans.EuclideanDistance, 10)
-	imgQuantized, _ := imgRework(labels, centroids, img.Rows(), img.Cols())
-	imgToonify := gocv.NewMat()
-	defer imgQuantized.Close()
-
-	gocv.BitwiseAnd(imgEdges, imgQuantized, &imgToonify)
-
-	//window := gocv.NewWindow("original gopher")
-	//window2 := gocv.NewWindow("gopher blured")
-	//window3 := gocv.NewWindow("gopher edges")
-	//window4 := gocv.NewWindow("gopher filtered")
-	//window5 := gocv.NewWindow("gopher quantized")
-	//window6 := gocv.NewWindow("gopher toonifyed")
-
-	//window.IMShow(img)
-	//window2.IMShow(imgBlured)
-	//window3.IMShow(imgEdges)
-	//window4.IMShow(imgFiltered)
-	//window5.IMShow(imgQuantized)
-	//window6.IMShow(imgToonify)
-
+	imgToonify := <-toonChan
+	close(doneChan)
+	close(edgesChan)
+	close(filterChan)
+	close(toonChan)
 	return imgToonify
 }

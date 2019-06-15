@@ -56,6 +56,7 @@ func formatData(img gocv.Mat) []kmeans.ClusteredObservation {
 }
 
 func makeEdges(imgBlured gocv.Mat, edgesChan chan gocv.Mat) {
+
 	start := time.Now()
 	imgEdges := gocv.NewMat()
 	gocv.Canny(imgBlured, &imgEdges, 62.5, 125)
@@ -68,6 +69,7 @@ func makeEdges(imgBlured gocv.Mat, edgesChan chan gocv.Mat) {
 }
 
 func filter(imgBlured gocv.Mat, filterChan chan gocv.Mat) {
+
 	imgFiltered := gocv.NewMat()
 	start := time.Now()
 	gocv.BilateralFilter(imgBlured, &imgFiltered, 7, 35, 35)
@@ -78,6 +80,7 @@ func filter(imgBlured gocv.Mat, filterChan chan gocv.Mat) {
 }
 
 func makeToon(img gocv.Mat, edgesChan chan gocv.Mat, filterChan chan gocv.Mat, toonChan chan gocv.Mat) {
+
 	imgKmeans := gocv.NewMat()
 	defer imgKmeans.Close()
 
@@ -104,6 +107,7 @@ func makeToon(img gocv.Mat, edgesChan chan gocv.Mat, filterChan chan gocv.Mat, t
 }
 
 func main() {
+
 	start := time.Now()
 	// declarações de canais
 	doneChan := make(chan string)     // para indicar que o programa terminou
@@ -112,44 +116,37 @@ func main() {
 	toonChan := make(chan gocv.Mat)   // para a imagem cartunizada
 	fmt.Println("Toonifying...")
 
-	go func() {
+	img := gocv.IMRead("gopher.png", gocv.IMReadUnchanged)
+	defer img.Close()
 
-		img := gocv.IMRead("gopher.png", gocv.IMReadUnchanged)
-		defer img.Close()
-
-		// borrando imagem
-		imgBlured := gocv.NewMat()
-		defer imgBlured.Close()
-		start := time.Now()
-		gocv.MedianBlur(img, &imgBlured, 7)
-		elapsed := time.Since(start)
-		log.Printf("median time: %s", elapsed)
-		fmt.Println("Image blured")
-
-		// fazendo as bordas
-		go makeEdges(imgBlured, edgesChan)
-
-		// aplicando filtro bilateral
-		go filter(imgBlured, filterChan)
-
-		// cartunizando
-		go makeToon(img, edgesChan, filterChan, toonChan)
-		window1 := gocv.NewWindow("original image")
-		defer window1.Close()
-		window2 := gocv.NewWindow("toonifyed image")
-		defer window2.Close()
-
-		window1.IMShow(img)
-		window2.IMShow(<-toonChan)
-
-		window1.WaitKey(0)
-
-		doneChan <- "Done!"
-
-	}()
-
-	<-doneChan
+	// borrando imagem
+	imgBlured := gocv.NewMat()
+	defer imgBlured.Close()
+	start = time.Now()
+	gocv.MedianBlur(img, &imgBlured, 7)
 	elapsed := time.Since(start)
+	log.Printf("median time: %s", elapsed)
+	fmt.Println("Image blured")
+
+	// fazendo as bordas
+	go makeEdges(imgBlured, edgesChan)
+
+	// aplicando filtro bilateral
+	go filter(imgBlured, filterChan)
+
+	// cartunizando
+	go makeToon(img, edgesChan, filterChan, toonChan)
+
+	window1 := gocv.NewWindow("original image")
+	defer window1.Close()
+	window2 := gocv.NewWindow("toonifyed image")
+	defer window2.Close()
+
+	window1.IMShow(img)
+	window2.IMShow(<-toonChan)
+	window1.WaitKey(0)
+
+	elapsed = time.Since(start)
 	log.Printf("total time: %s", elapsed)
 	close(doneChan)
 	close(edgesChan)
