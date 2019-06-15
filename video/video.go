@@ -1,43 +1,67 @@
 package main
 
 import (
-	"gocv.io/x/gocv"
-	"time"
+	"fmt"
 	"log"
+	"math"
+	"time"
+
+	"gocv.io/x/gocv"
 )
 
 func main() {
 	// Get initial time
 	start := time.Now()
 
-	fps := 15
 	// Open video capture
-	webcam, _ := gocv.OpenVideoCapture("keyboard.mp4")
+	video, _ := gocv.OpenVideoCapture("xerek720.mp4")
+	// Define destiny FPS
+	DestFPS := 15
+	// Get source FPS
+	SrcFPS := video.Get(gocv.VideoCaptureFPS)
+	// Get total amount of frames
+	FramesTot := video.Get(gocv.VideoCaptureFrameCount)
+	// Get video lenght
+	video.Set(gocv.VideoCapturePosAVIRatio, 1)
+	videoLen := video.Get(gocv.VideoCapturePosMsec)
+	video.Set(gocv.VideoCapturePosAVIRatio, 0)
+	// Get frame lenght
+	frameLen := videoLen / FramesTot
+	// Get frame counter
+	SrcFPS = math.Round(SrcFPS)
+	FrameCont := SrcFPS / float64(DestFPS)
+	FrameCont = FrameCont * frameLen
+
 	// Initialize output
-	vid_width := int(webcam.Get(3))
-	vid_height := int(webcam.Get(4))
-	output, _ := gocv.VideoWriterFile("ToonVideo.avi","MJPG",float64(fps),vid_width,vid_height,true)
+	vidWidth := int(video.Get(gocv.VideoCaptureFrameWidth))
+	vidHeight := int(video.Get(gocv.VideoCaptureFrameHeight))
+	output, _ := gocv.VideoWriterFile("xerek-15.avi", "MJPG", float64(DestFPS), vidWidth, vidHeight, true)
 
 	window := gocv.NewWindow("Hello")
 	window2 := gocv.NewWindow("Hello2")
 	img := gocv.NewMat()
 	ret := true
+	FrameIt := 0.0
+	frameS := video.Get(gocv.VideoCapturePosMsec)
 
 	for {
-		ret = webcam.Read(&img)
-		if !ret{
-			break;
+		frameS = video.Get(gocv.VideoCapturePosMsec)
+		fmt.Printf("time: %v / %v\n", frameS, videoLen)
+		ret = video.Read(&img)
+		if !ret {
+			break
 		}
 		img2 := toonify(img)
 		window.IMShow(img)
 		window2.IMShow(img2)
 		output.Write(img2)
 		img2.Close()
-		window.WaitKey(1000 / fps)
+		FrameIt = FrameIt + FrameCont
+		video.Set(gocv.VideoCapturePosMsec, FrameIt)
+		window.WaitKey(1000 / DestFPS)
 	}
 
-	webcam.Close()
-	//output.Close()
+	video.Close()
 
 	time := time.Since(start)
 	log.Printf("Progam took %s\n", time)

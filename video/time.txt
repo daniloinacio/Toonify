@@ -5,3 +5,11 @@ Source Video: keyboard2.mp4 - Output video: ToonVideo2.avi - 15 FPS - MJPG
 -2019/05/25 18:39:50 Progam took 37m38.779381401s
 Source Video: keyboard2.mp4 - Output video: ToonVideo2-30.avi - 30 FPS - MJPG
 -2019/05/25 19:25:50 Progam took 38m11.413763483s
+
+######## Testes Feitos Após Correção do Frame Rate #################
+Source Video: xerek360.mp4 - Output video: xerek360-15.avi - 15 FPS - MJPG
+-2019/06/13 00:09:19 Progam took 9m44.971505373s
+Source Video: xerek360.mp4 - Output video: xerek360-24.avi - 24 FPS - MJPG
+-2019/06/13 00:25:46 Progam took 15m18.40115043s
+Source Video: xerek720.mp4 - Output video: xerek720-15.avi - 15 FPS - MJPG
+-2019/06/13 01:05:16 Progam took 37m16.270339508s
