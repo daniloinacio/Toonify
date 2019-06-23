@@ -2,8 +2,11 @@ package main
 
 import (
 	"Toonify/kmeans"
+	"fmt"
 	"log"
 	"math"
+	"os"
+	"strings"
 	"time"
 
 	"gocv.io/x/gocv"
@@ -112,10 +115,22 @@ func stage4(clusteredDataChan chan []kmeans.ClusteredPixel, centroidsChan chan [
 
 func main() {
 
+	if len(os.Args) < 2 {
+		fmt.Println("How to run:\n\t./toonVideo [video file]")
+		return
+	}
+
 	start := time.Now()
 
 	// Abre o video
-	video, _ := gocv.OpenVideoCapture("xerek360.mp4")
+	video, ok := gocv.OpenVideoCapture(os.Args[1])
+	if ok != nil {
+		fmt.Println("Couldn't open image")
+		return
+	}
+	// Separa o nome do arquivo e a extensão
+	fileName := strings.Split(os.Args[1], ".")
+
 	// FPS de destino
 	DestFPS := 15
 	// FPS original
@@ -136,7 +151,7 @@ func main() {
 	// Inicializa a saida
 	vidWidth := int(video.Get(gocv.VideoCaptureFrameWidth))
 	vidHeight := int(video.Get(gocv.VideoCaptureFrameHeight))
-	output, _ := gocv.VideoWriterFile("xerek-15.avi", "MJPG", float64(DestFPS), vidWidth, vidHeight, true)
+	output, _ := gocv.VideoWriterFile("result/toon"+fileName[0]+".avi", "MJPG", float64(DestFPS), vidWidth, vidHeight, true)
 
 	window := gocv.NewWindow("ToonVideo")
 	FrameIt := 0.0
