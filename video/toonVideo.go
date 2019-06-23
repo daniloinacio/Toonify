@@ -70,13 +70,19 @@ func stage3(dataChan chan []kmeans.ClusteredPixel, imgEdgesChan chan gocv.Mat) (
 	out1 := make(chan []kmeans.ClusteredPixel, 1) //Channels de saida
 	out2 := make(chan []kmeans.Pixel, 1)
 	out3 := make(chan gocv.Mat, 1)
+	cont := 0
 	go func() { // goroutine
+		centroids := make([]kmeans.Pixel, 24)
 		for {
 			data, ok := <-dataChan
 			if !ok { // Encerra o loop quando o channel estiver vazio e tiver sido fechado
 				break
 			}
-			clusteredData, centroids, _ := kmeans.Kmeans(data, 24, kmeans.EuclideanDistance, 10)
+			cont++
+			if cont == 1 {
+				centroids = kmeans.Seed(data, 24) //centroid inicializado aleatoriamente
+			}
+			clusteredData, centroids, _ := kmeans.Kmeans(data, centroids, kmeans.EuclideanDistance, 10)
 			out1 <- clusteredData
 			out2 <- centroids
 			out3 <- <-imgEdgesChan
